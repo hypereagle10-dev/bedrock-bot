@@ -216,6 +216,14 @@ app.get('/', (req, res) => {
           font-size: 0.78rem;
         }
 
+        .login-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-top: 8px;
+          gap: 6px;
+        }
+
         .login-box a {
           color: #38bdf8;
           font-weight: bold;
@@ -230,8 +238,24 @@ app.get('/', (req, res) => {
           padding: 2px 8px;
           border-radius: 6px;
           display: inline-block;
-          margin-top: 6px;
           letter-spacing: 1px;
+        }
+
+        .btn-copy {
+          background: #38bdf8;
+          color: #080c14;
+          padding: 4px 8px;
+          font-size: 0.7rem;
+          border-radius: 6px;
+          font-weight: bold;
+          cursor: pointer;
+          border: none;
+          white-space: nowrap;
+          transition: background 0.2s;
+        }
+
+        .btn-copy:hover {
+          background: #0ea5e9;
         }
 
         button {
@@ -330,9 +354,15 @@ app.get('/', (req, res) => {
               if (info.user_code && info.verification_uri) {
                 loginHtml = \`
                   <div class="login-box">
-                    🔑 <b>Login Required:</b><br>
-                    🔗 <a href="\${info.verification_uri}" target="_blank">Open Microsoft Link</a><br>
-                    Code: <span class="login-code">\${info.user_code}</span>
+                    🔑 <b>Login Required:</b>
+                    <div class="login-row">
+                      🔗 <a href="\${info.verification_uri}" target="_blank">Open Microsoft Link</a>
+                      <button class="btn-copy" onclick="copyText('\${info.verification_uri}', this)">Copy Link</button>
+                    </div>
+                    <div class="login-row">
+                      <span>Code: <span class="login-code">\${info.user_code}</span></span>
+                      <button class="btn-copy" onclick="copyText('\${info.user_code}', this)">Copy Code</button>
+                    </div>
                   </div>
                 \`;
               }
@@ -352,6 +382,44 @@ app.get('/', (req, res) => {
               \`;
             });
           } catch(e) {}
+        }
+
+        function copyText(text, btn) {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+              showCopied(btn);
+            }).catch(() => {
+              fallbackCopy(text, btn);
+            });
+          } else {
+            fallbackCopy(text, btn);
+          }
+        }
+
+        function fallbackCopy(text, btn) {
+          const textarea = document.createElement('textarea');
+          textarea.value = text;
+          textarea.style.position = 'fixed';
+          document.body.appendChild(textarea);
+          textarea.focus();
+          textarea.select();
+          try {
+            document.execCommand('copy');
+            showCopied(btn);
+          } catch (err) {}
+          document.body.removeChild(textarea);
+        }
+
+        function showCopied(btn) {
+          const original = btn.innerText;
+          btn.innerText = 'Copied!';
+          btn.style.background = '#22c55e';
+          btn.style.color = '#fff';
+          setTimeout(() => {
+            btn.innerText = original;
+            btn.style.background = '#38bdf8';
+            btn.style.color = '#080c14';
+          }, 2000);
         }
 
         async function botAction(id, action) {
@@ -377,7 +445,6 @@ app.get('/', (req, res) => {
         }
 
         fetchStatus();
-        // Restored original 3-second refresh rate as requested
         setInterval(fetchStatus, 3000);
       </script>
     </body>
@@ -420,8 +487,6 @@ function cleanupBot(id) {
 
 function startBot(botInfo, host, port) {
   const id = botInfo.id;
-  
-  // Clean up any stale zombie instance before starting fresh
   cleanupBot(id);
 
   currentHost = host || currentHost;
@@ -459,9 +524,10 @@ function startBot(botInfo, host, port) {
       }
     };
 
+    client.on('connect', markOnline);
+    client.on('session', markOnline);
     client.on('spawn', markOnline);
     client.on('join', markOnline);
-    client.on('resource_packs_info', markOnline); // Often fires right before or during active game entry
     client.on('packet', (packet) => {
       if (['play_status', 'start_game', 'set_time', 'chunk_radius_update'].includes(packet.name)) {
         markOnline();
