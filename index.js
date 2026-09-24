@@ -377,8 +377,8 @@ app.get('/', (req, res) => {
         }
 
         fetchStatus();
-        // Polling interval updated to every 1 second as requested
-        setInterval(fetchStatus, 1000);
+        // Restored original 3-second refresh rate as requested
+        setInterval(fetchStatus, 3000);
       </script>
     </body>
     </html>
@@ -410,6 +410,7 @@ function cleanupBot(id) {
   if (activeBots[id]) {
     try {
       activeBots[id].removeAllListeners();
+      activeBots[id].close();
     } catch (e) {}
     delete activeBots[id];
   }
@@ -419,11 +420,14 @@ function cleanupBot(id) {
 
 function startBot(botInfo, host, port) {
   const id = botInfo.id;
-  if (activeBots[id]) return;
+  
+  // Clean up any stale zombie instance before starting fresh
+  cleanupBot(id);
 
   currentHost = host || currentHost;
   currentPort = parseInt(port) || currentPort;
 
+  botEnabled[id] = true;
   botSpawned[id] = false;
   botLoginData[id] = null;
   console.log(`🚀 Connecting Bot ${id} (${botInfo.username})...`);
@@ -447,21 +451,19 @@ function startBot(botInfo, host, port) {
 
     activeBots[id] = client;
 
-    // Immediately mark online when connection, session, join or spawn occurs
     const markOnline = () => {
       if (!botSpawned[id]) {
-        console.log(`✅ Bot ${id} (${botInfo.username}) successfully active!`);
+        console.log(`✅ Bot ${id} (${botInfo.username}) successfully entered the world!`);
         botSpawned[id] = true;
         botLoginData[id] = null;
       }
     };
 
-    client.on('connect', markOnline);
-    client.on('session', markOnline);
     client.on('spawn', markOnline);
     client.on('join', markOnline);
+    client.on('resource_packs_info', markOnline); // Often fires right before or during active game entry
     client.on('packet', (packet) => {
-      if (packet.name === 'play_status' || packet.name === 'start_game') {
+      if (['play_status', 'start_game', 'set_time', 'chunk_radius_update'].includes(packet.name)) {
         markOnline();
       }
     });
@@ -470,7 +472,6 @@ function startBot(botInfo, host, port) {
       if (!err.message.includes('Invalid tag') && !err.message.includes('Read error for undefined')) {
         console.error(`⚠️ Bot ${id} error:`, err.message);
       }
-      botSpawned[id] = false;
     });
 
     client.on('close', () => {
@@ -518,13 +519,7 @@ app.post('/bot/:id/:action', (req, res) => {
     startBot(botInfo, currentHost, currentPort);
   } else if (action === 'disconnect') {
     botEnabled[id] = false;
-    botSpawned[id] = false;
-    if (activeBots[id]) {
-      try {
-        activeBots[id].close();
-      } catch (e) {}
-      cleanupBot(id);
-    }
+    cleanupBot(id);
     console.log(`🛑 Bot ${id} manually disconnected.`);
   }
 
@@ -547,13 +542,7 @@ app.post('/bots/:action', (req, res) => {
     botsConfig.forEach(botInfo => {
       const id = botInfo.id;
       botEnabled[id] = false;
-      botSpawned[id] = false;
-      if (activeBots[id]) {
-        try {
-          activeBots[id].close();
-        } catch (e) {}
-        cleanupBot(id);
-      }
+      cleanupBot(id);
     });
     console.log(`🛑 Disconnect All triggered. All bots disabled.`);
   }
