@@ -574,7 +574,7 @@ app.post('/bot/:id/:action', (req, res) => {
   const id = parseInt(req.params.id);
   const action = req.params.action;
   const { host, port } = req.body;
-  const, botInfo = botsConfig.find(b => b.id === id);
+  const botInfo = botsConfig.find(b => b.id === id); // <-- Fixed syntax error here
 
   if (!botInfo) return res.status(404).json({ error: 'Bot not found' });
   currentHost = host || currentHost;
@@ -652,7 +652,7 @@ discordClient.on('messageCreate', (message) => {
     botClient.queue('text', {
       type: 'chat',
       needs_translation: false,
-      source_name: text, // forces the chat line source name to be the text itself
+      source_name: text,
       xuid: '',
       platform_chat_id: '',
       filtered_message: text,
@@ -660,7 +660,7 @@ discordClient.on('messageCreate', (message) => {
     });
   };
 
-  // If command is welcome (or anything else), pass it cleanly through the chat text stream
+  // If command is welcome, pass it cleanly through the chat text stream
   if (contentText.toLowerCase() === 'welcome') {
     if (targetId === 'all') {
       let count = 0;
