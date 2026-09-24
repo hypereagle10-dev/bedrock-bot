@@ -377,7 +377,8 @@ app.get('/', (req, res) => {
         }
 
         fetchStatus();
-        setInterval(fetchStatus, 3000);
+        // Polling interval updated to every 1 second as requested
+        setInterval(fetchStatus, 1000);
       </script>
     </body>
     </html>
@@ -446,14 +447,17 @@ function startBot(botInfo, host, port) {
 
     activeBots[id] = client;
 
+    // Immediately mark online when connection, session, join or spawn occurs
     const markOnline = () => {
       if (!botSpawned[id]) {
-        console.log(`✅ Bot ${id} (${botInfo.username}) successfully entered the world!`);
+        console.log(`✅ Bot ${id} (${botInfo.username}) successfully active!`);
         botSpawned[id] = true;
         botLoginData[id] = null;
       }
     };
 
+    client.on('connect', markOnline);
+    client.on('session', markOnline);
     client.on('spawn', markOnline);
     client.on('join', markOnline);
     client.on('packet', (packet) => {
