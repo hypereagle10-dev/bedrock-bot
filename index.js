@@ -221,7 +221,7 @@ app.get('/', (req, res) => {
           align-items: center;
           justify-content: space-between;
           margin-top: 8px;
-          gap: 6px;
+          gap: 8px;
         }
 
         .login-box a {
@@ -244,8 +244,8 @@ app.get('/', (req, res) => {
         .btn-copy {
           background: #38bdf8;
           color: #080c14;
-          padding: 4px 8px;
-          font-size: 0.7rem;
+          padding: 4px 10px;
+          font-size: 0.75rem;
           border-radius: 6px;
           font-weight: bold;
           cursor: pointer;
@@ -574,7 +574,7 @@ app.post('/bot/:id/:action', (req, res) => {
   const id = parseInt(req.params.id);
   const action = req.params.action;
   const { host, port } = req.body;
-  const botInfo = botsConfig.find(b => b.id === id);
+  const, botInfo = botsConfig.find(b => b.id === id);
 
   if (!botInfo) return res.status(404).json({ error: 'Bot not found' });
   currentHost = host || currentHost;
@@ -647,42 +647,43 @@ discordClient.on('messageCreate', (message) => {
   const targetId = args[1].toLowerCase();
   let contentText = args.slice(2).join(' ').trim();
 
-  // Handle '!cmd welcome' -> speaks "welcome" in normal in-game chat
-  if (contentText.toLowerCase() === 'welcome') {
-    const sendChat = (botClient) => {
-      botClient.queue('text', {
-        type: 'chat',
-        needs_translation: false,
-        source_name: botClient.username,
-        xuid: '',
-        platform_chat_id: '',
-        filtered_message: 'welcome',
-        message: 'welcome'
-      });
-    };
+  // Helper to send clean chat text from the bot without name prefixing issues
+  const sendCleanChat = (botClient, text) => {
+    botClient.queue('text', {
+      type: 'chat',
+      needs_translation: false,
+      source_name: text, // forces the chat line source name to be the text itself
+      xuid: '',
+      platform_chat_id: '',
+      filtered_message: text,
+      message: text
+    });
+  };
 
+  // If command is welcome (or anything else), pass it cleanly through the chat text stream
+  if (contentText.toLowerCase() === 'welcome') {
     if (targetId === 'all') {
       let count = 0;
       for (const [id, botClient] of Object.entries(activeBots)) {
         if (botSpawned[id]) {
-          sendChat(botClient);
+          sendCleanChat(botClient, 'welcome');
           count++;
         }
       }
-      return message.reply(`✅ Broadcasted normal chat "welcome" to ${count} active bots.`);
+      return message.reply(`✅ Broadcasted "welcome" cleanly to ${count} active bots.`);
     }
 
     const botId = parseInt(targetId);
     const targetBot = activeBots[botId];
     if (targetBot && botSpawned[botId]) {
-      sendChat(targetBot);
-      return message.reply(`✅ Bot ${botId} said "welcome" in chat.`);
+      sendCleanChat(targetBot, 'welcome');
+      return message.reply(`✅ Bot ${botId} sent "welcome".`);
     } else {
       return message.reply(`❌ Bot ${botId} is not online.`);
     }
   }
 
-  // Smart command normalizer for /home with spaces and auto-slashing
+  // Standard command execution for /home, /shard pay, etc.
   const lowerContent = contentText.toLowerCase();
   if (lowerContent.startsWith('home ') || lowerContent === 'home') {
     contentText = contentText.startsWith('/') ? contentText : `/${contentText}`;
@@ -690,7 +691,7 @@ discordClient.on('messageCreate', (message) => {
     contentText = `/${contentText}`;
   }
 
-  function sendToGame(botClient, text) {
+  function sendCommandToGame(botClient, text) {
     botClient.queue('command_request', {
       command: text,
       origin: {
@@ -708,19 +709,19 @@ discordClient.on('messageCreate', (message) => {
     let count = 0;
     for (const [id, botClient] of Object.entries(activeBots)) {
       if (botSpawned[id]) {
-        sendToGame(botClient, contentText);
+        sendCommandToGame(botClient, contentText);
         count++;
       }
     }
-    return message.reply(`✅ Broadcasted \`${contentText}\` to ${count} active bots.`);
+    return message.reply(`✅ Broadcasted command \`${contentText}\` to ${count} active bots.`);
   }
 
   const botId = parseInt(targetId);
   const targetBot = activeBots[botId];
 
   if (targetBot && botSpawned[botId]) {
-    sendToGame(targetBot, contentText);
-    message.reply(`✅ Executed \`${contentText}\` on Bot ${botId}.`);
+    sendCommandToGame(targetBot, contentText);
+    message.reply(`✅ Executed command \`${contentText}\` on Bot ${botId}.`);
   } else {
     message.reply(`❌ Bot ${botId} is either offline or hasn't fully spawned into the world yet.`);
   }
